@@ -676,7 +676,10 @@ function EditProfilePanel({ onBack }: { onBack: () => void }) {
             <input
               type="text"
               value={name}
-              onChange={(e) => setSaved(false) || setName(e.target.value)}
+              onChange={(e) => {
+                setSaved(false);
+                setName(e.target.value);
+              }}
               className="bg-card focus:ring-primary/20 w-full rounded-xl border px-4 py-2.5 text-sm outline-none focus:ring-2"
             />
           </div>
@@ -687,7 +690,10 @@ function EditProfilePanel({ onBack }: { onBack: () => void }) {
             <input
               type="email"
               value={email}
-              onChange={(e) => setSaved(false) || setEmail(e.target.value)}
+              onChange={(e) => {
+                setSaved(false);
+                setEmail(e.target.value);
+              }}
               className="bg-card focus:ring-primary/20 w-full rounded-xl border px-4 py-2.5 text-sm outline-none focus:ring-2"
             />
           </div>
@@ -698,7 +704,10 @@ function EditProfilePanel({ onBack }: { onBack: () => void }) {
             <input
               type="tel"
               value={phone}
-              onChange={(e) => setSaved(false) || setPhone(e.target.value)}
+              onChange={(e) => {
+                setSaved(false);
+                setPhone(e.target.value);
+              }}
               className="bg-card focus:ring-primary/20 w-full rounded-xl border px-4 py-2.5 text-sm outline-none focus:ring-2"
             />
           </div>
