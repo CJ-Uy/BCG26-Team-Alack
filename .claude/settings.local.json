@@ -2,7 +2,12 @@
   "permissions": {
     "allow": [
       "Bash(npm install:*)",
-      "Bash(npx shadcn@latest init -d --force)"
+      "Bash(npx shadcn@latest init -d --force)",
+      "Bash(npx shadcn@latest add avatar badge card input scroll-area separator sheet tabs -y)",
+      "WebSearch",
+      "Bash(npx next:*)",
+      "Bash(curl -s http://localhost:3000)",
+      "Bash(npx tsc:*)"
     ]
   }
 }
