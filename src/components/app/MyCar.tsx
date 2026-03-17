@@ -883,98 +883,6 @@ export function MyCar() {
               </div>
             </div>
 
-            {/* ─── Discover New Models ─────────────────────────── */}
-            <button
-              onClick={() => setShowShowroom(true)}
-              className="mt-4 w-full text-left"
-            >
-              <div className="group border-primary/20 from-primary/5 via-primary/10 to-primary/5 hover:border-primary/40 relative overflow-hidden rounded-2xl border bg-linear-to-r p-4 transition-all hover:shadow-md">
-                <div className="flex items-center gap-3">
-                  <div className="bg-primary/10 text-primary flex h-11 w-11 shrink-0 items-center justify-center rounded-xl">
-                    <Sparkles className="h-5 w-5" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <h3 className="text-sm font-bold">Explore New Models</h3>
-                    <p className="text-muted-foreground text-[11px]">
-                      View the latest Toyota lineup in interactive 3D
-                    </p>
-                  </div>
-                  <ArrowRight className="text-primary h-4 w-4 shrink-0 transition-transform group-hover:translate-x-0.5" />
-                </div>
-
-                {/* Mini showcase strip */}
-                <div className="mt-3 flex gap-2 overflow-hidden">
-                  {showroomCatalog.slice(0, 4).map((car) => (
-                    <div
-                      key={car.id}
-                      className="bg-card flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5"
-                    >
-                      <div
-                        className="h-3 w-3 rounded-full"
-                        style={{ backgroundColor: car.defaultColor }}
-                      />
-                      <span className="text-[10px] font-medium">
-                        {car.model.split(" ").slice(1).join(" ")}
-                      </span>
-                      {car.badge && (
-                        <Badge
-                          variant="secondary"
-                          className="h-4 px-1 text-[8px]"
-                        >
-                          {car.badge}
-                        </Badge>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </button>
-
-            {/* Featured showroom car card */}
-            <button
-              onClick={() => openShowroomViewer(showroomCatalog[0])}
-              className="mt-3 w-full text-left"
-            >
-              <div className="group bg-card hover:border-primary/30 overflow-hidden rounded-2xl border transition-all hover:shadow-md">
-                <div
-                  className="relative flex h-28 items-center justify-center"
-                  style={{
-                    background: `linear-gradient(135deg, ${showroomCatalog[0].defaultColor} 0%, ${showroomCatalog[0].defaultColor}88 100%)`,
-                  }}
-                >
-                  <Car className="h-14 w-14 text-white/20" />
-                  <div className="absolute top-3 left-3">
-                    <Badge className="bg-white/90 text-[10px] font-bold text-black">
-                      Featured
-                    </Badge>
-                  </div>
-                  <div className="absolute right-3 bottom-3 flex items-center gap-1 rounded-full bg-black/30 px-2.5 py-1 text-[10px] font-medium text-white backdrop-blur-sm">
-                    <Eye className="h-3 w-3" />
-                    View in 3D
-                  </div>
-                </div>
-                <div className="p-3.5">
-                  <p className="text-muted-foreground text-[11px]">
-                    {showroomCatalog[0].year} • {showroomCatalog[0].category}
-                  </p>
-                  <h3 className="text-sm font-bold">
-                    {showroomCatalog[0].model}
-                  </h3>
-                  <p className="text-muted-foreground text-[11px]">
-                    {showroomCatalog[0].tagline}
-                  </p>
-                  <div className="mt-2 flex items-center justify-between">
-                    <p className="text-primary text-xs font-bold">
-                      {showroomCatalog[0].startingPrice}
-                    </p>
-                    <span className="text-primary flex items-center gap-1 text-[11px] font-medium">
-                      Customize & explore <ArrowRight className="h-3 w-3" />
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </button>
-
             {/* Upcoming Bookings */}
             {bookings.length > 0 && (
               <div className="border-primary/20 bg-primary/5 mt-4 rounded-xl border p-4">
@@ -1366,6 +1274,93 @@ export function MyCar() {
             )}
           </div>
         )}
+
+        {/* ─── Discover New Models ─────────────────────────── */}
+        <button
+          onClick={() => setShowShowroom(true)}
+          className="mt-4 w-full text-left"
+        >
+          <div className="group border-primary/20 from-primary/5 via-primary/10 to-primary/5 hover:border-primary/40 relative overflow-hidden rounded-2xl border bg-linear-to-r p-4 transition-all hover:shadow-md">
+            <div className="flex items-center gap-3">
+              <div className="bg-primary/10 text-primary flex h-11 w-11 shrink-0 items-center justify-center rounded-xl">
+                <Sparkles className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="text-sm font-bold">Explore New Models</h3>
+                <p className="text-muted-foreground text-[11px]">
+                  View the latest Toyota lineup in interactive 3D
+                </p>
+              </div>
+              <ArrowRight className="text-primary h-4 w-4 shrink-0 transition-transform group-hover:translate-x-0.5" />
+            </div>
+
+            {/* Mini showcase strip */}
+            <div className="mt-3 flex gap-2 overflow-hidden">
+              {showroomCatalog.slice(0, 4).map((car) => (
+                <div
+                  key={car.id}
+                  className="bg-card flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5"
+                >
+                  <div
+                    className="h-3 w-3 rounded-full"
+                    style={{ backgroundColor: car.defaultColor }}
+                  />
+                  <span className="text-[10px] font-medium">
+                    {car.model.split(" ").slice(1).join(" ")}
+                  </span>
+                  {car.badge && (
+                    <Badge variant="secondary" className="h-4 px-1 text-[8px]">
+                      {car.badge}
+                    </Badge>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </button>
+
+        {/* Featured showroom car card */}
+        <button
+          onClick={() => openShowroomViewer(showroomCatalog[0])}
+          className="mt-3 w-full text-left"
+        >
+          <div className="group bg-card hover:border-primary/30 overflow-hidden rounded-2xl border transition-all hover:shadow-md">
+            <div
+              className="relative flex h-28 items-center justify-center"
+              style={{
+                background: `linear-gradient(135deg, ${showroomCatalog[0].defaultColor} 0%, ${showroomCatalog[0].defaultColor}88 100%)`,
+              }}
+            >
+              <Car className="h-14 w-14 text-white/20" />
+              <div className="absolute top-3 left-3">
+                <Badge className="bg-white/90 text-[10px] font-bold text-black">
+                  Featured
+                </Badge>
+              </div>
+              <div className="absolute right-3 bottom-3 flex items-center gap-1 rounded-full bg-black/30 px-2.5 py-1 text-[10px] font-medium text-white backdrop-blur-sm">
+                <Eye className="h-3 w-3" />
+                View in 3D
+              </div>
+            </div>
+            <div className="p-3.5">
+              <p className="text-muted-foreground text-[11px]">
+                {showroomCatalog[0].year} • {showroomCatalog[0].category}
+              </p>
+              <h3 className="text-sm font-bold">{showroomCatalog[0].model}</h3>
+              <p className="text-muted-foreground text-[11px]">
+                {showroomCatalog[0].tagline}
+              </p>
+              <div className="mt-2 flex items-center justify-between">
+                <p className="text-primary text-xs font-bold">
+                  {showroomCatalog[0].startingPrice}
+                </p>
+                <span className="text-primary flex items-center gap-1 text-[11px] font-medium">
+                  Customize & explore <ArrowRight className="h-3 w-3" />
+                </span>
+              </div>
+            </div>
+          </div>
+        </button>
       </div>
     </div>
   );
