@@ -1,7 +1,7 @@
 "use client";
 
 import { Home, Car, MessageCircle, User } from "lucide-react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { ToyotaLogo } from "./ToyotaLogo";
 import { cn } from "@/lib/utils";
 
@@ -29,7 +29,7 @@ export function BottomNav({
   onMenuPress,
 }: BottomNavProps) {
   return (
-    <div className="relative z-50 flex-shrink-0">
+    <div className="relative z-50 shrink-0">
       <nav className="bg-card relative flex items-end justify-around border-t px-2 pt-2 pb-1">
         {tabs.map((tab) => {
           if (tab.id === "menu") {
@@ -103,30 +103,51 @@ export function BottomNav({
           const isActive = active === tab.id;
 
           return (
-            <button
+            <motion.button
               key={tab.id}
               onClick={() => onTabChange(tab.id)}
+              whileTap={{ scale: 0.85 }}
               className="relative flex flex-col items-center gap-0.5 px-3 py-1"
             >
-              <Icon
-                className={cn(
-                  "h-5 w-5 transition-colors",
-                  isActive ? "text-primary" : "text-muted-foreground",
-                )}
-                strokeWidth={isActive ? 2.5 : 2}
-              />
+              <motion.div
+                animate={{
+                  y: isActive ? -2 : 0,
+                  scale: isActive ? 1.1 : 1,
+                }}
+                transition={{
+                  type: "spring",
+                  stiffness: 400,
+                  damping: 20,
+                }}
+              >
+                <Icon
+                  className={cn(
+                    "h-5 w-5 transition-colors duration-200",
+                    isActive ? "text-primary" : "text-muted-foreground",
+                  )}
+                  strokeWidth={isActive ? 2.5 : 2}
+                />
+              </motion.div>
               <span
                 className={cn(
-                  "text-[10px] font-medium transition-colors",
+                  "text-[10px] font-medium transition-colors duration-200",
                   isActive ? "text-primary" : "text-muted-foreground",
                 )}
               >
                 {tab.label}
               </span>
               {isActive && (
-                <div className="bg-primary absolute -top-px left-1/2 h-0.5 w-8 -translate-x-1/2 rounded-full" />
+                <motion.div
+                  layoutId="activeTabIndicator"
+                  className="bg-primary absolute -top-px left-1/2 h-0.5 w-8 -translate-x-1/2 rounded-full"
+                  transition={{
+                    type: "spring",
+                    stiffness: 400,
+                    damping: 28,
+                  }}
+                />
               )}
-            </button>
+            </motion.button>
           );
         })}
       </nav>

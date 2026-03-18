@@ -933,6 +933,7 @@ function MembershipCardModal({ onClose }: { onClose: () => void }) {
 export function MenuModal({ open, onClose }: MenuModalProps) {
   const [membershipOpen, setMembershipOpen] = useState(false);
   const [detailView, setDetailView] = useState<DetailView>(null);
+  const [navDirection, setNavDirection] = useState(1);
   const { navigateTo } = useApp();
 
   const handleItemClick = (id: string) => {
@@ -949,6 +950,7 @@ export function MenuModal({ open, onClose }: MenuModalProps) {
       id === "rewards" ||
       id === "news"
     ) {
+      setNavDirection(1);
       setDetailView(id as DetailView);
     } else {
       onClose();
@@ -961,6 +963,7 @@ export function MenuModal({ open, onClose }: MenuModalProps) {
   };
 
   const handleDetailBack = () => {
+    setNavDirection(-1);
     setDetailView(null);
   };
 
@@ -985,13 +988,14 @@ export function MenuModal({ open, onClose }: MenuModalProps) {
             className="bg-card absolute inset-x-4 bottom-28 z-50 overflow-hidden rounded-3xl shadow-2xl"
             style={{ maxHeight: "calc(100% - 10rem)" }}
           >
-            <AnimatePresence mode="wait">
+            <AnimatePresence mode="wait" custom={navDirection}>
               {detailView ? (
                 <motion.div
                   key={detailView}
-                  initial={{ x: 80, opacity: 0 }}
+                  custom={navDirection}
+                  initial={{ x: navDirection * 80, opacity: 0 }}
                   animate={{ x: 0, opacity: 1 }}
-                  exit={{ x: -80, opacity: 0 }}
+                  exit={{ x: navDirection * -80, opacity: 0 }}
                   transition={{ duration: 0.2, ease: "easeInOut" }}
                   className="flex h-full max-h-125 flex-col"
                 >
@@ -1020,9 +1024,11 @@ export function MenuModal({ open, onClose }: MenuModalProps) {
               ) : (
                 <motion.div
                   key="main"
-                  initial={{ opacity: 1 }}
-                  exit={{ x: -80, opacity: 0 }}
-                  transition={{ duration: 0.2 }}
+                  custom={navDirection}
+                  initial={{ x: navDirection * 80, opacity: 0 }}
+                  animate={{ x: 0, opacity: 1 }}
+                  exit={{ x: navDirection * -80, opacity: 0 }}
+                  transition={{ duration: 0.2, ease: "easeInOut" }}
                 >
                   {/* Color bar */}
                   <div className="flex h-1 w-full">

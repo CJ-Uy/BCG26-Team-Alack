@@ -1,167 +1,140 @@
 "use client";
 
-import { useRef, useState, useMemo } from "react";
+import React, { useRef, useState, useMemo, Suspense } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
-import {
-  Environment,
-  OrbitControls,
-  ContactShadows,
-  MeshReflectorMaterial,
-} from "@react-three/drei";
+import { Environment, OrbitControls, ContactShadows } from "@react-three/drei";
 import * as THREE from "three";
 
-// ─── Helpers ────────────────────────────────────────────────────────
+// ─── Error boundary ─────────────────────────────────────────────────
 
-/** Mirror a 2D shape along X to make symmetric halves, extruded along Z */
-function createExtrudedBody(
-  points: [number, number][],
-  depth: number,
-  bevelRadius = 0.06,
-) {
-  const shape = new THREE.Shape();
-  shape.moveTo(points[0][0], points[0][1]);
-  for (let i = 1; i < points.length; i++) {
-    shape.lineTo(points[i][0], points[i][1]);
+class Canvas3DErrorBoundary extends React.Component<
+  { children: React.ReactNode; fallback: React.ReactNode },
+  { hasError: boolean }
+> {
+  constructor(props: { children: React.ReactNode; fallback: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
   }
-  shape.closePath();
-  return new THREE.ExtrudeGeometry(shape, {
-    depth,
-    bevelEnabled: true,
-    bevelThickness: bevelRadius,
-    bevelSize: bevelRadius,
-    bevelSegments: 4,
-    curveSegments: 12,
-  });
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+  render() {
+    if (this.state.hasError) return this.props.fallback;
+    return this.props.children;
+  }
 }
 
-function createSmoothBody(depth: number, bevelRadius = 0.08) {
-  const shape = new THREE.Shape();
+// ─── Shape helpers ──────────────────────────────────────────────────
+// Side-profile shape for a cute chubby sedan.
+// X = length direction, Y = height. Extruded along Z for width.
+// Origin at center-bottom of the car.
 
-  // -- Side-profile of a modern sedan (x = length, y = height) --
-  // Origin is roughly the rear-bottom of the car.
-  // We draw clockwise starting from rear-bottom.
+function makeBodyProfile() {
+  const s = new THREE.Shape();
 
-  // Bottom edge (flat underside with wheel-arch cutouts)
-  shape.moveTo(0.0, 0.15); // rear-bottom
-  shape.lineTo(0.15, 0.0); // small rear undercut
-  // rear wheel arch
-  shape.lineTo(0.5, 0.0);
-  shape.quadraticCurveTo(0.7, 0.35, 0.9, 0.35);
-  shape.quadraticCurveTo(1.1, 0.35, 1.3, 0.0);
-  // flat bottom between arches
-  shape.lineTo(2.9, 0.0);
-  // front wheel arch
-  shape.quadraticCurveTo(3.1, 0.35, 3.3, 0.35);
-  shape.quadraticCurveTo(3.5, 0.35, 3.7, 0.0);
-  shape.lineTo(4.05, 0.0);
-  shape.lineTo(4.2, 0.15); // front undercut
+  // Start at rear-bottom, go clockwise
+  // Rear underside
+  s.moveTo(-1.55, 0.12);
+  s.quadraticCurveTo(-1.65, 0.06, -1.6, 0.0);
+  // Flat bottom (with wheel-arch cutouts)
+  // rear arch — peaks at 0.34 to clear the tire tops
+  s.lineTo(-1.25, 0.0);
+  s.quadraticCurveTo(-1.05, 0.34, -0.85, 0.34);
+  s.quadraticCurveTo(-0.65, 0.34, -0.45, 0.0);
+  // mid bottom
+  s.lineTo(0.45, 0.0);
+  // front arch
+  s.quadraticCurveTo(0.65, 0.34, 0.85, 0.34);
+  s.quadraticCurveTo(1.05, 0.34, 1.25, 0.0);
+  // front underside
+  s.lineTo(1.6, 0.0);
+  s.quadraticCurveTo(1.65, 0.06, 1.55, 0.12);
 
-  // Front face going up
-  shape.quadraticCurveTo(4.25, 0.3, 4.25, 0.45); // front bumper curve
-  shape.lineTo(4.22, 0.55); // nose
+  // Front face — rounded nose
+  s.quadraticCurveTo(1.72, 0.2, 1.72, 0.35);
 
-  // Hood — slight slope upward to base of windshield
-  shape.quadraticCurveTo(4.0, 0.62, 3.5, 0.68);
-  shape.lineTo(2.95, 0.72);
+  // Hood — gentle upward slope
+  s.quadraticCurveTo(1.65, 0.46, 1.3, 0.52);
+  s.lineTo(0.9, 0.56);
 
-  // A-pillar / windshield
-  shape.quadraticCurveTo(2.75, 0.85, 2.6, 1.15);
+  // Windshield — steep but rounded
+  s.quadraticCurveTo(0.75, 0.65, 0.6, 0.9);
 
-  // Roof
-  shape.quadraticCurveTo(2.4, 1.28, 2.1, 1.32);
-  shape.lineTo(1.4, 1.32);
-  shape.quadraticCurveTo(1.1, 1.3, 0.95, 1.18);
+  // Roof — nice dome
+  s.quadraticCurveTo(0.45, 1.04, 0.15, 1.08);
+  s.lineTo(-0.35, 1.08);
+  s.quadraticCurveTo(-0.6, 1.06, -0.75, 0.95);
 
-  // C-pillar / rear window
-  shape.quadraticCurveTo(0.75, 0.95, 0.65, 0.78);
+  // Rear window — smooth slope
+  s.quadraticCurveTo(-0.9, 0.8, -1.05, 0.65);
 
-  // Trunk deck
-  shape.lineTo(0.3, 0.72);
-  shape.quadraticCurveTo(0.12, 0.7, 0.05, 0.6);
+  // Trunk
+  s.lineTo(-1.3, 0.58);
+  s.quadraticCurveTo(-1.45, 0.55, -1.55, 0.48);
 
-  // Rear face going down
-  shape.quadraticCurveTo(0.0, 0.45, 0.0, 0.15);
+  // Rear face down
+  s.quadraticCurveTo(-1.68, 0.38, -1.68, 0.25);
+  s.quadraticCurveTo(-1.65, 0.15, -1.55, 0.12);
 
-  return new THREE.ExtrudeGeometry(shape, {
-    depth,
-    bevelEnabled: true,
-    bevelThickness: bevelRadius,
-    bevelSize: bevelRadius,
-    bevelSegments: 5,
-    curveSegments: 16,
-  });
+  return s;
 }
 
-function createGlassShape() {
-  // Greenhouse (windows) side-profile
-  const shape = new THREE.Shape();
+function makeGreenhouseProfile() {
+  // The window area — matches the cabin section of the body profile
+  // Slightly inset from body so it doesn't z-fight
+  const s = new THREE.Shape();
 
-  // Windshield base
-  shape.moveTo(2.9, 0.74);
-  // Up the windshield
-  shape.quadraticCurveTo(2.72, 0.87, 2.58, 1.12);
-  // Forward along roof edge
-  shape.quadraticCurveTo(2.4, 1.24, 2.1, 1.27);
-  shape.lineTo(1.42, 1.27);
-  // Rear roof curve into C-pillar
-  shape.quadraticCurveTo(1.15, 1.25, 1.0, 1.15);
-  // Down C-pillar / rear window
-  shape.quadraticCurveTo(0.82, 0.97, 0.72, 0.8);
-  // Trunk top
-  shape.lineTo(0.72, 0.76);
-  // Along beltline back to start
-  shape.lineTo(2.9, 0.74);
+  // Beltline (bottom of windows)
+  s.moveTo(0.85, 0.58);
 
-  return shape;
-}
+  // Windshield
+  s.quadraticCurveTo(0.72, 0.67, 0.58, 0.88);
 
-// ─── Car body component ─────────────────────────────────────────────
-
-function CarBody({ color }: { color: string }) {
-  const carWidth = 1.7;
-
-  const bodyGeo = useMemo(() => {
-    const geo = createSmoothBody(carWidth, 0.08);
-    // Center the extrusion along Z
-    geo.translate(0, 0, -carWidth / 2);
-    // Center along X
-    geo.translate(-2.1, 0, 0);
-    return geo;
-  }, []);
-
-  // Glass side panels
-  const glassShape = useMemo(() => createGlassShape(), []);
-  const glassGeo = useMemo(() => {
-    const geo = new THREE.ExtrudeGeometry(glassShape, {
-      depth: carWidth + 0.04, // slightly wider than body
-      bevelEnabled: false,
-      curveSegments: 16,
-    });
-    geo.translate(-2.1, 0, -(carWidth + 0.04) / 2);
-    return geo;
-  }, [glassShape]);
-
-  // Windshield (front glass)
-  const windshieldGeo = useMemo(() => {
-    const shape = new THREE.Shape();
-    shape.moveTo(-0.78, 0.74);
-    shape.lineTo(0.78, 0.74);
-    shape.lineTo(0.65, 1.12);
-    shape.quadraticCurveTo(0, 1.18, -0.65, 1.12);
-    shape.closePath();
-    const geo = new THREE.ShapeGeometry(shape, 12);
-    return geo;
-  }, []);
+  // Roof inner edge
+  s.quadraticCurveTo(0.43, 1.01, 0.15, 1.04);
+  s.lineTo(-0.35, 1.04);
+  s.quadraticCurveTo(-0.58, 1.02, -0.72, 0.92);
 
   // Rear window
-  const rearWindowGeo = useMemo(() => {
-    const shape = new THREE.Shape();
-    shape.moveTo(-0.72, 0.78);
-    shape.lineTo(0.72, 0.78);
-    shape.lineTo(0.62, 1.1);
-    shape.quadraticCurveTo(0, 1.16, -0.62, 1.1);
-    shape.closePath();
-    const geo = new THREE.ShapeGeometry(shape, 12);
+  s.quadraticCurveTo(-0.87, 0.78, -1.0, 0.63);
+
+  // Beltline back
+  s.lineTo(-1.0, 0.58);
+  s.lineTo(0.85, 0.58);
+
+  return s;
+}
+
+// ─── Cute car body ──────────────────────────────────────────────────
+
+function CuteCarBody({ color }: { color: string }) {
+  const carWidth = 1.5;
+  const halfW = carWidth / 2;
+
+  const bodyGeo = useMemo(() => {
+    const profile = makeBodyProfile();
+    const geo = new THREE.ExtrudeGeometry(profile, {
+      depth: carWidth,
+      bevelEnabled: true,
+      bevelThickness: 0.06,
+      bevelSize: 0.06,
+      bevelSegments: 4,
+      curveSegments: 20,
+    });
+    geo.translate(0, 0, -halfW);
+    return geo;
+  }, []);
+
+  // Greenhouse (windows) — narrower than body so it sits recessed
+  const glassWidth = carWidth - 0.04;
+  const glassGeo = useMemo(() => {
+    const profile = makeGreenhouseProfile();
+    const geo = new THREE.ExtrudeGeometry(profile, {
+      depth: glassWidth,
+      bevelEnabled: false,
+      curveSegments: 20,
+    });
+    geo.translate(0, 0, -glassWidth / 2);
     return geo;
   }, []);
 
@@ -169,11 +142,11 @@ function CarBody({ color }: { color: string }) {
     () =>
       new THREE.MeshPhysicalMaterial({
         color,
-        metalness: 0.75,
-        roughness: 0.18,
+        metalness: 0.45,
+        roughness: 0.25,
         clearcoat: 1.0,
-        clearcoatRoughness: 0.03,
-        envMapIntensity: 1.2,
+        clearcoatRoughness: 0.05,
+        envMapIntensity: 0.9,
       }),
     [color],
   );
@@ -181,24 +154,14 @@ function CarBody({ color }: { color: string }) {
   const glassMat = useMemo(
     () =>
       new THREE.MeshPhysicalMaterial({
-        color: "#88bbee",
-        metalness: 0.05,
+        color: "#88bbdd",
+        metalness: 0.1,
         roughness: 0.05,
-        transmission: 0.85,
         transparent: true,
         opacity: 0.35,
-        ior: 1.5,
-        thickness: 0.05,
-      }),
-    [],
-  );
-
-  const chromeMat = useMemo(
-    () =>
-      new THREE.MeshStandardMaterial({
-        color: "#dddddd",
-        metalness: 0.98,
-        roughness: 0.05,
+        envMapIntensity: 0.8,
+        side: THREE.DoubleSide,
+        depthWrite: false,
       }),
     [],
   );
@@ -206,9 +169,18 @@ function CarBody({ color }: { color: string }) {
   const darkMat = useMemo(
     () =>
       new THREE.MeshStandardMaterial({
-        color: "#111111",
-        metalness: 0.4,
-        roughness: 0.6,
+        color: "#1a1a1a",
+        roughness: 0.85,
+      }),
+    [],
+  );
+
+  const chromeMat = useMemo(
+    () =>
+      new THREE.MeshStandardMaterial({
+        color: "#e0e0e0",
+        metalness: 0.95,
+        roughness: 0.05,
       }),
     [],
   );
@@ -218,274 +190,230 @@ function CarBody({ color }: { color: string }) {
       {/* ── Main body shell ── */}
       <mesh geometry={bodyGeo} material={paintMat} castShadow receiveShadow />
 
-      {/* ── Glass greenhouse (side windows) ── */}
-      <mesh geometry={glassGeo} material={glassMat} />
+      {/* ── Glass greenhouse — recessed into body, front/back faces = windshield & rear window ── */}
+      <mesh geometry={glassGeo} material={glassMat} renderOrder={1} />
 
-      {/* ── Windshield ── */}
-      <group position={[2.9 - 2.1, 0, 0]} rotation={[0, 0, 0]}>
-        <mesh
-          geometry={windshieldGeo}
-          material={glassMat}
-          position={[0, 0, 0]}
-          rotation={[0.35, Math.PI / 2, 0]}
-        />
-      </group>
+      {/* ── Big cute round headlights (bug eyes!) ── */}
+      {[0.45, -0.45].map((z) => (
+        <group key={`hl-${z}`} position={[1.62, 0.4, z]}>
+          {/* White eyeball */}
+          <mesh>
+            <sphereGeometry args={[0.16, 20, 20]} />
+            <meshStandardMaterial
+              color="#ffffff"
+              emissive="#ffffee"
+              emissiveIntensity={0.4}
+              roughness={0.1}
+            />
+          </mesh>
+          {/* Pupil */}
+          <mesh position={[0.1, 0.02, 0]}>
+            <sphereGeometry args={[0.08, 14, 14]} />
+            <meshStandardMaterial
+              color="#223344"
+              emissive="#aaddff"
+              emissiveIntensity={0.6}
+              roughness={0.05}
+              metalness={0.2}
+            />
+          </mesh>
+          {/* Tiny highlight dot */}
+          <mesh position={[0.14, 0.06, 0.04]}>
+            <sphereGeometry args={[0.025, 8, 8]} />
+            <meshStandardMaterial
+              color="#ffffff"
+              emissive="#ffffff"
+              emissiveIntensity={2}
+            />
+          </mesh>
+          {/* Chrome bezel */}
+          <mesh rotation={[0, Math.PI / 2, 0]}>
+            <torusGeometry args={[0.16, 0.02, 8, 24]} />
+            <primitive object={chromeMat} attach="material" />
+          </mesh>
+        </group>
+      ))}
 
-      {/* ── Rear window ── */}
-      <group position={[0.72 - 2.1, 0, 0]}>
-        <mesh
-          geometry={rearWindowGeo}
-          material={glassMat}
-          rotation={[-0.3, Math.PI / 2, 0]}
-        />
-      </group>
-
-      {/* ── Headlights ── */}
-      <mesh position={[2.1, 0.48, 0.72]} castShadow>
-        <boxGeometry args={[0.22, 0.1, 0.28]} />
-        <meshStandardMaterial
-          color="#ffffff"
-          emissive="#ffffdd"
-          emissiveIntensity={2}
-          roughness={0.1}
-        />
-      </mesh>
-      <mesh position={[2.1, 0.48, -0.72]} castShadow>
-        <boxGeometry args={[0.22, 0.1, 0.28]} />
-        <meshStandardMaterial
-          color="#ffffff"
-          emissive="#ffffdd"
-          emissiveIntensity={2}
-          roughness={0.1}
-        />
-      </mesh>
-      {/* Headlight chrome bezels */}
-      <mesh position={[2.16, 0.48, 0.72]}>
-        <boxGeometry args={[0.02, 0.14, 0.32]} />
-        <primitive object={chromeMat} attach="material" />
-      </mesh>
-      <mesh position={[2.16, 0.48, -0.72]}>
-        <boxGeometry args={[0.02, 0.14, 0.32]} />
-        <primitive object={chromeMat} attach="material" />
-      </mesh>
-
-      {/* ── DRL strips ── */}
-      <mesh position={[2.14, 0.38, 0.72]}>
-        <boxGeometry args={[0.04, 0.02, 0.26]} />
-        <meshStandardMaterial
-          color="#ffffff"
-          emissive="#ccddff"
-          emissiveIntensity={3}
-        />
-      </mesh>
-      <mesh position={[2.14, 0.38, -0.72]}>
-        <boxGeometry args={[0.04, 0.02, 0.26]} />
-        <meshStandardMaterial
-          color="#ffffff"
-          emissive="#ccddff"
-          emissiveIntensity={3}
-        />
-      </mesh>
-
-      {/* ── Taillights ── */}
-      <mesh position={[-2.08, 0.52, 0.72]}>
-        <boxGeometry args={[0.08, 0.12, 0.3]} />
-        <meshStandardMaterial
-          color="#cc0000"
-          emissive="#ff0000"
-          emissiveIntensity={1.5}
-          roughness={0.2}
-        />
-      </mesh>
-      <mesh position={[-2.08, 0.52, -0.72]}>
-        <boxGeometry args={[0.08, 0.12, 0.3]} />
-        <meshStandardMaterial
-          color="#cc0000"
-          emissive="#ff0000"
-          emissiveIntensity={1.5}
-          roughness={0.2}
-        />
-      </mesh>
-      {/* Taillight connecting strip */}
-      <mesh position={[-2.09, 0.52, 0]}>
-        <boxGeometry args={[0.04, 0.03, 1.1]} />
-        <meshStandardMaterial
-          color="#cc0000"
-          emissive="#ff0000"
-          emissiveIntensity={0.8}
-        />
-      </mesh>
-
-      {/* ── Front grille ── */}
-      <mesh position={[2.14, 0.32, 0]}>
-        <boxGeometry args={[0.06, 0.18, 1.0]} />
+      {/* ── Cute grille (little smile) ── */}
+      <mesh position={[1.7, 0.2, 0]}>
+        <boxGeometry args={[0.04, 0.1, 0.5]} />
         <primitive object={darkMat} attach="material" />
       </mesh>
-      {/* Grille chrome surround */}
-      <mesh position={[2.15, 0.32, 0]}>
-        <boxGeometry args={[0.02, 0.22, 1.08]} />
+      {/* Grille chrome frame */}
+      <mesh position={[1.71, 0.2, 0]}>
+        <boxGeometry args={[0.02, 0.14, 0.56]} />
         <primitive object={chromeMat} attach="material" />
       </mesh>
-      {/* Grille horizontal slats */}
-      {[-0.04, 0, 0.04].map((yOff, i) => (
-        <mesh key={i} position={[2.16, 0.32 + yOff, 0]}>
-          <boxGeometry args={[0.01, 0.015, 0.9]} />
+
+      {/* ── DRL strips (cute eyebrow accents) ── */}
+      {[0.45, -0.45].map((z) => (
+        <mesh key={`drl-${z}`} position={[1.68, 0.54, z]}>
+          <boxGeometry args={[0.03, 0.02, 0.18]} />
+          <meshStandardMaterial
+            color="#ffffff"
+            emissive="#ddeeff"
+            emissiveIntensity={2}
+          />
+        </mesh>
+      ))}
+
+      {/* ── Round taillights ── */}
+      {[0.45, -0.45].map((z) => (
+        <group key={`tl-${z}`} position={[-1.6, 0.42, z]}>
+          <mesh>
+            <sphereGeometry args={[0.1, 14, 14]} />
+            <meshStandardMaterial
+              color="#dd2222"
+              emissive="#ff0000"
+              emissiveIntensity={1.0}
+              roughness={0.2}
+            />
+          </mesh>
+          <mesh rotation={[0, Math.PI / 2, 0]}>
+            <torusGeometry args={[0.1, 0.015, 8, 20]} />
+            <primitive object={chromeMat} attach="material" />
+          </mesh>
+        </group>
+      ))}
+
+      {/* ── Taillight connecting strip ── */}
+      <mesh position={[-1.62, 0.42, 0]}>
+        <boxGeometry args={[0.025, 0.03, 0.65]} />
+        <meshStandardMaterial
+          color="#dd2222"
+          emissive="#ff0000"
+          emissiveIntensity={0.3}
+        />
+      </mesh>
+
+      {/* ── Bumpers ── */}
+      <mesh position={[1.66, 0.1, 0]}>
+        <boxGeometry args={[0.08, 0.14, 1.35]} />
+        <primitive object={darkMat} attach="material" />
+      </mesh>
+      <mesh position={[-1.62, 0.1, 0]}>
+        <boxGeometry args={[0.08, 0.14, 1.35]} />
+        <primitive object={darkMat} attach="material" />
+      </mesh>
+
+      {/* ── Side skirts ── */}
+      {[halfW + 0.02, -(halfW + 0.02)].map((z) => (
+        <mesh key={`skirt-${z}`} position={[0, 0.06, z]}>
+          <boxGeometry args={[3.0, 0.04, 0.03]} />
+          <primitive object={darkMat} attach="material" />
+        </mesh>
+      ))}
+
+      {/* ── Side mirrors (cute round nubs) ── */}
+      {[1, -1].map((side) => (
+        <group
+          key={`mirror-${side}`}
+          position={[0.6, 0.65, side * (halfW + 0.08)]}
+        >
+          <mesh position={[0, 0, side * 0.04]}>
+            <boxGeometry args={[0.04, 0.03, 0.08]} />
+            <meshPhysicalMaterial
+              color={color}
+              metalness={0.4}
+              roughness={0.3}
+              clearcoat={1}
+            />
+          </mesh>
+          <mesh position={[0, 0, side * 0.1]}>
+            <sphereGeometry args={[0.045, 10, 10]} />
+            <meshPhysicalMaterial
+              color={color}
+              metalness={0.4}
+              roughness={0.3}
+              clearcoat={1}
+            />
+          </mesh>
+        </group>
+      ))}
+
+      {/* ── Door handles ── */}
+      {[0.2, -0.45].map((x) =>
+        [halfW + 0.02, -(halfW + 0.02)].map((z) => (
+          <mesh key={`h-${x}-${z}`} position={[x, 0.45, z]}>
+            <boxGeometry args={[0.08, 0.02, 0.015]} />
+            <primitive object={chromeMat} attach="material" />
+          </mesh>
+        )),
+      )}
+
+      {/* ── Door crease lines ── */}
+      {[halfW + 0.015, -(halfW + 0.015)].map((z) => (
+        <mesh key={`door-${z}`} position={[-0.12, 0.38, z]}>
+          <boxGeometry args={[0.01, 0.45, 0.003]} />
+          <meshStandardMaterial color="#000" transparent opacity={0.12} />
+        </mesh>
+      ))}
+
+      {/* ── Beltline chrome trim ── */}
+      {[halfW + 0.02, -(halfW + 0.02)].map((z) => (
+        <mesh key={`belt-${z}`} position={[0, 0.58, z]}>
+          <boxGeometry args={[2.6, 0.012, 0.008]} />
           <primitive object={chromeMat} attach="material" />
         </mesh>
       ))}
 
-      {/* ── Front bumper lower intake ── */}
-      <mesh position={[2.12, 0.12, 0]}>
-        <boxGeometry args={[0.08, 0.12, 0.7]} />
-        <primitive object={darkMat} attach="material" />
+      {/* ── License plates ── */}
+      <mesh position={[1.72, 0.15, 0]}>
+        <boxGeometry args={[0.015, 0.06, 0.2]} />
+        <meshStandardMaterial color="#eee" roughness={0.4} />
       </mesh>
-
-      {/* ── Fog lights ── */}
-      <mesh position={[2.12, 0.14, 0.5]}>
-        <sphereGeometry args={[0.04, 12, 12]} />
-        <meshStandardMaterial
-          color="#ffff88"
-          emissive="#ffff44"
-          emissiveIntensity={1}
-        />
-      </mesh>
-      <mesh position={[2.12, 0.14, -0.5]}>
-        <sphereGeometry args={[0.04, 12, 12]} />
-        <meshStandardMaterial
-          color="#ffff88"
-          emissive="#ffff44"
-          emissiveIntensity={1}
-        />
-      </mesh>
-
-      {/* ── Side mirrors ── */}
-      <group position={[0.75, 0.75, 0.92]}>
-        {/* Mirror arm */}
-        <mesh position={[0, 0, 0.04]}>
-          <boxGeometry args={[0.06, 0.04, 0.1]} />
-          <meshPhysicalMaterial
-            color={color}
-            metalness={0.7}
-            roughness={0.2}
-            clearcoat={1}
-          />
-        </mesh>
-        {/* Mirror housing */}
-        <mesh position={[0, 0, 0.14]}>
-          <boxGeometry args={[0.12, 0.08, 0.06]} />
-          <meshPhysicalMaterial
-            color={color}
-            metalness={0.7}
-            roughness={0.2}
-            clearcoat={1}
-          />
-        </mesh>
-        {/* Mirror glass */}
-        <mesh position={[0.01, 0, 0.175]}>
-          <planeGeometry args={[0.09, 0.06]} />
-          <meshStandardMaterial
-            color="#aaccee"
-            metalness={0.95}
-            roughness={0.05}
-          />
-        </mesh>
-      </group>
-      <group position={[0.75, 0.75, -0.92]} scale={[1, 1, -1]}>
-        <mesh position={[0, 0, 0.04]}>
-          <boxGeometry args={[0.06, 0.04, 0.1]} />
-          <meshPhysicalMaterial
-            color={color}
-            metalness={0.7}
-            roughness={0.2}
-            clearcoat={1}
-          />
-        </mesh>
-        <mesh position={[0, 0, 0.14]}>
-          <boxGeometry args={[0.12, 0.08, 0.06]} />
-          <meshPhysicalMaterial
-            color={color}
-            metalness={0.7}
-            roughness={0.2}
-            clearcoat={1}
-          />
-        </mesh>
-        <mesh position={[0.01, 0, 0.175]}>
-          <planeGeometry args={[0.09, 0.06]} />
-          <meshStandardMaterial
-            color="#aaccee"
-            metalness={0.95}
-            roughness={0.05}
-          />
-        </mesh>
-      </group>
-
-      {/* ── Door handles (chrome) ── */}
-      <mesh position={[0.15, 0.6, 0.92]}>
-        <boxGeometry args={[0.12, 0.025, 0.02]} />
-        <primitive object={chromeMat} attach="material" />
-      </mesh>
-      <mesh position={[-0.65, 0.6, 0.92]}>
-        <boxGeometry args={[0.12, 0.025, 0.02]} />
-        <primitive object={chromeMat} attach="material" />
-      </mesh>
-      <mesh position={[0.15, 0.6, -0.92]}>
-        <boxGeometry args={[0.12, 0.025, 0.02]} />
-        <primitive object={chromeMat} attach="material" />
-      </mesh>
-      <mesh position={[-0.65, 0.6, -0.92]}>
-        <boxGeometry args={[0.12, 0.025, 0.02]} />
-        <primitive object={chromeMat} attach="material" />
-      </mesh>
-
-      {/* ── Beltline chrome trim ── */}
-      <mesh position={[0.0, 0.73, 0.9]}>
-        <boxGeometry args={[3.0, 0.015, 0.01]} />
-        <primitive object={chromeMat} attach="material" />
-      </mesh>
-      <mesh position={[0.0, 0.73, -0.9]}>
-        <boxGeometry args={[3.0, 0.015, 0.01]} />
-        <primitive object={chromeMat} attach="material" />
-      </mesh>
-
-      {/* ── License plate (rear) ── */}
-      <mesh position={[-2.1, 0.32, 0]}>
-        <boxGeometry args={[0.02, 0.1, 0.3]} />
-        <meshStandardMaterial color="#eeeeee" roughness={0.4} />
-      </mesh>
-      {/* ── License plate (front) ── */}
-      <mesh position={[2.16, 0.22, 0]}>
-        <boxGeometry args={[0.02, 0.08, 0.25]} />
-        <meshStandardMaterial color="#eeeeee" roughness={0.4} />
+      <mesh position={[-1.66, 0.25, 0]}>
+        <boxGeometry args={[0.015, 0.06, 0.2]} />
+        <meshStandardMaterial color="#eee" roughness={0.4} />
       </mesh>
 
       {/* ── Exhaust tips ── */}
-      <mesh position={[-2.08, 0.06, 0.5]} rotation={[0, 0, Math.PI / 2]}>
-        <cylinderGeometry args={[0.035, 0.035, 0.1, 16]} />
-        <primitive object={chromeMat} attach="material" />
-      </mesh>
-      <mesh position={[-2.08, 0.06, -0.5]} rotation={[0, 0, Math.PI / 2]}>
-        <cylinderGeometry args={[0.035, 0.035, 0.1, 16]} />
-        <primitive object={chromeMat} attach="material" />
-      </mesh>
+      {[0.25, -0.25].map((z) => (
+        <mesh
+          key={`exh-${z}`}
+          position={[-1.66, 0.06, z]}
+          rotation={[0, 0, Math.PI / 2]}
+        >
+          <cylinderGeometry args={[0.025, 0.025, 0.06, 10]} />
+          <primitive object={chromeMat} attach="material" />
+        </mesh>
+      ))}
 
-      {/* ── Roof antenna (shark fin) ── */}
-      <mesh position={[-0.6, 1.38, 0]} castShadow>
-        <coneGeometry args={[0.04, 0.12, 8]} />
+      {/* ── Cute shark fin antenna ── */}
+      <mesh position={[-0.35, 1.14, 0]} castShadow>
+        <coneGeometry args={[0.03, 0.08, 8]} />
         <meshPhysicalMaterial
           color={color}
-          metalness={0.5}
+          metalness={0.4}
           roughness={0.3}
           clearcoat={1}
         />
       </mesh>
+
+      {/* ── Fog lights (tiny round) ── */}
+      {[0.5, -0.5].map((z) => (
+        <mesh key={`fog-${z}`} position={[1.68, 0.1, z]}>
+          <sphereGeometry args={[0.03, 8, 8]} />
+          <meshStandardMaterial
+            color="#ffff88"
+            emissive="#ffff44"
+            emissiveIntensity={0.8}
+          />
+        </mesh>
+      ))}
     </group>
   );
 }
 
-// ─── Wheel assembly ─────────────────────────────────────────────────
+// ─── Wheel ──────────────────────────────────────────────────────────
 
-function Wheel({ position }: { position: [number, number, number] }) {
-  const tireGeo = useMemo(() => new THREE.TorusGeometry(0.3, 0.13, 20, 40), []);
+function Wheel({
+  position,
+  flip,
+}: {
+  position: [number, number, number];
+  flip?: boolean;
+}) {
   const tireMat = useMemo(
     () =>
       new THREE.MeshStandardMaterial({
@@ -495,146 +423,58 @@ function Wheel({ position }: { position: [number, number, number] }) {
       }),
     [],
   );
-
-  // Outer rim ring
-  const rimGeo = useMemo(() => new THREE.TorusGeometry(0.25, 0.03, 12, 40), []);
   const rimMat = useMemo(
     () =>
       new THREE.MeshStandardMaterial({
         color: "#d0d0d0",
-        metalness: 0.97,
+        metalness: 0.95,
         roughness: 0.05,
       }),
     [],
   );
 
-  // Hub cap
-  const hubGeo = useMemo(
-    () => new THREE.CylinderGeometry(0.07, 0.07, 0.22, 20),
-    [],
-  );
-
-  // Disc face
-  const discGeo = useMemo(
-    () => new THREE.CylinderGeometry(0.24, 0.24, 0.02, 32),
-    [],
-  );
-  const discMat = useMemo(
-    () =>
-      new THREE.MeshStandardMaterial({
-        color: "#888888",
-        metalness: 0.9,
-        roughness: 0.15,
-      }),
-    [],
-  );
-
-  // Brake disc visible behind spokes
-  const brakeGeo = useMemo(
-    () => new THREE.CylinderGeometry(0.2, 0.2, 0.03, 32),
-    [],
-  );
-  const brakeMat = useMemo(
-    () =>
-      new THREE.MeshStandardMaterial({
-        color: "#555555",
-        metalness: 0.8,
-        roughness: 0.3,
-      }),
-    [],
-  );
-
-  // Brake caliper
-  const caliperMat = useMemo(
-    () =>
-      new THREE.MeshStandardMaterial({
-        color: "#cc0000",
-        metalness: 0.6,
-        roughness: 0.3,
-      }),
-    [],
-  );
-
-  const spokeCount = 7;
+  const spokeCount = 5;
 
   return (
-    <group position={position}>
-      {/* Tire */}
-      <mesh
-        geometry={tireGeo}
-        material={tireMat}
-        rotation={[Math.PI / 2, 0, 0]}
-        castShadow
-      />
-      {/* Tire sidewall detail — inner ring */}
+    <group position={position} scale={flip ? [1, 1, -1] : [1, 1, 1]}>
+      {/* Tire — torus upright in XY plane (no rotation!) */}
+      <mesh castShadow>
+        <torusGeometry args={[0.22, 0.1, 14, 28]} />
+        <primitive object={tireMat} attach="material" />
+      </mesh>
+
+      {/* Rim ring */}
+      <mesh>
+        <torusGeometry args={[0.17, 0.02, 8, 28]} />
+        <primitive object={rimMat} attach="material" />
+      </mesh>
+
+      {/* Disc face — cylinder rotated to face outward (Z) */}
+      <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, 0, 0.01]}>
+        <cylinderGeometry args={[0.15, 0.15, 0.02, 20]} />
+        <meshStandardMaterial color="#999" metalness={0.85} roughness={0.15} />
+      </mesh>
+
+      {/* Hub */}
       <mesh rotation={[Math.PI / 2, 0, 0]}>
-        <torusGeometry args={[0.32, 0.02, 8, 40]} />
-        <meshStandardMaterial color="#222222" roughness={0.95} />
+        <cylinderGeometry args={[0.05, 0.05, 0.12, 12]} />
+        <primitive object={rimMat} attach="material" />
       </mesh>
 
-      {/* Outer rim ring */}
-      <mesh
-        geometry={rimGeo}
-        material={rimMat}
-        rotation={[Math.PI / 2, 0, 0]}
-      />
-
-      {/* Brake disc */}
-      <mesh
-        geometry={brakeGeo}
-        material={brakeMat}
-        rotation={[Math.PI / 2, 0, 0]}
-      />
-
-      {/* Brake caliper */}
-      <mesh position={[0.15, -0.08, 0.02]} rotation={[Math.PI / 2, 0, 0]}>
-        <boxGeometry args={[0.06, 0.04, 0.08]} />
-        <primitive object={caliperMat} attach="material" />
+      {/* Hub cap */}
+      <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, 0, 0.07]}>
+        <cylinderGeometry args={[0.03, 0.03, 0.01, 10]} />
+        <meshStandardMaterial color="#ccc" metalness={0.95} roughness={0.05} />
       </mesh>
 
-      {/* Rim face */}
-      <mesh
-        geometry={discGeo}
-        material={discMat}
-        rotation={[Math.PI / 2, 0, 0]}
-        position={[0, 0, 0.01]}
-      />
-
-      {/* Hub center */}
-      <mesh
-        geometry={hubGeo}
-        material={rimMat}
-        rotation={[Math.PI / 2, 0, 0]}
-      />
-
-      {/* Hub logo circle */}
-      <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, 0.12, 0]}>
-        <cylinderGeometry args={[0.04, 0.04, 0.01, 16]} />
-        <meshStandardMaterial
-          color="#cccccc"
-          metalness={0.95}
-          roughness={0.05}
-        />
-      </mesh>
-
-      {/* Multi-spoke rim */}
+      {/* Spokes — rotate around Z in XY plane */}
       {Array.from({ length: spokeCount }).map((_, i) => {
         const angle = (i * Math.PI * 2) / spokeCount;
         return (
-          <group key={i} rotation={[Math.PI / 2, angle, 0]}>
-            {/* Main spoke */}
-            <mesh position={[0, 0.02, 0.14]}>
-              <boxGeometry args={[0.025, 0.04, 0.2]} />
+          <group key={i} rotation={[0, 0, angle]}>
+            <mesh position={[0, 0.1, 0.015]}>
+              <boxGeometry args={[0.025, 0.13, 0.025]} />
               <primitive object={rimMat} attach="material" />
-            </mesh>
-            {/* Spoke accent */}
-            <mesh position={[0, 0.04, 0.14]}>
-              <boxGeometry args={[0.015, 0.005, 0.18]} />
-              <meshStandardMaterial
-                color="#eeeeee"
-                metalness={0.98}
-                roughness={0.02}
-              />
             </mesh>
           </group>
         );
@@ -642,19 +482,17 @@ function Wheel({ position }: { position: [number, number, number] }) {
 
       {/* Lug nuts */}
       {Array.from({ length: 5 }).map((_, i) => {
-        const angle = (i * Math.PI * 2) / 5;
-        const x = Math.cos(angle) * 0.05;
-        const y = Math.sin(angle) * 0.05;
+        const a = (i * Math.PI * 2) / 5;
         return (
           <mesh
             key={`lug-${i}`}
-            position={[x, 0.12, y]}
+            position={[Math.cos(a) * 0.04, Math.sin(a) * 0.04, 0.07]}
             rotation={[Math.PI / 2, 0, 0]}
           >
-            <cylinderGeometry args={[0.008, 0.008, 0.02, 8]} />
+            <cylinderGeometry args={[0.006, 0.006, 0.012, 6]} />
             <meshStandardMaterial
-              color="#aaaaaa"
-              metalness={0.95}
+              color="#aaa"
+              metalness={0.9}
               roughness={0.1}
             />
           </mesh>
@@ -664,7 +502,7 @@ function Wheel({ position }: { position: [number, number, number] }) {
   );
 }
 
-// ─── Scene helpers ──────────────────────────────────────────────────
+// ─── Scene ──────────────────────────────────────────────────────────
 
 function AutoRotate({
   groupRef,
@@ -692,52 +530,47 @@ function CarScene({
 
   return (
     <>
-      <ambientLight intensity={0.35} />
+      <ambientLight intensity={0.5} />
       <directionalLight
-        position={[8, 10, 6]}
-        intensity={1.2}
+        position={[6, 8, 5]}
+        intensity={1.0}
         castShadow
-        shadow-mapSize-width={2048}
-        shadow-mapSize-height={2048}
+        shadow-mapSize-width={1024}
+        shadow-mapSize-height={1024}
       />
-      <directionalLight position={[-6, 6, -4]} intensity={0.4} />
-      <spotLight
-        position={[0, 12, 0]}
-        angle={0.25}
-        penumbra={1}
-        intensity={0.6}
-      />
-      {/* Rim light from behind for highlights */}
-      <pointLight position={[-4, 2, 0]} intensity={0.3} color="#aaccff" />
+      <directionalLight position={[-4, 5, -3]} intensity={0.3} />
+      <pointLight position={[0, 6, 0]} intensity={0.2} />
 
-      <group ref={groupRef} position={[0, -0.45, 0]}>
-        <CarBody color={color} />
-        <Wheel position={[1.2, 0.35, 0.92]} />
-        <Wheel position={[1.2, 0.35, -0.92]} />
-        <Wheel position={[-1.0, 0.35, 0.92]} />
-        <Wheel position={[-1.0, 0.35, -0.92]} />
+      <group ref={groupRef} position={[0, -0.15, 0]}>
+        <CuteCarBody color={color} />
+        {/* Wheels — outside body surface, flip -Z side so details face outward */}
+        <Wheel position={[0.85, 0.22, 0.84]} />
+        <Wheel position={[0.85, 0.22, -0.84]} flip />
+        <Wheel position={[-0.85, 0.22, 0.84]} />
+        <Wheel position={[-0.85, 0.22, -0.84]} flip />
       </group>
 
       <AutoRotate groupRef={groupRef} autoRotate={autoRotate} />
 
       <ContactShadows
-        position={[0, -0.88, 0]}
-        opacity={0.6}
-        scale={14}
+        position={[0, -0.55, 0]}
+        opacity={0.5}
+        scale={12}
         blur={2.5}
         far={4}
       />
 
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.88, 0]}>
-        <planeGeometry args={[60, 60]} />
-        <MeshReflectorMaterial
-          mirror={0.5}
-          blur={[400, 100]}
-          resolution={1024}
-          mixBlur={1}
-          color="#0a0a0a"
-          metalness={0.7}
-          roughness={1}
+      {/* Simple dark floor */}
+      <mesh
+        rotation={[-Math.PI / 2, 0, 0]}
+        position={[0, -0.56, 0]}
+        receiveShadow
+      >
+        <circleGeometry args={[20, 64]} />
+        <meshStandardMaterial
+          color="#111115"
+          roughness={0.95}
+          metalness={0.1}
         />
       </mesh>
 
@@ -746,10 +579,9 @@ function CarScene({
         enablePan={false}
         enableZoom={true}
         minPolarAngle={Math.PI / 6}
-        maxPolarAngle={Math.PI / 2.15}
+        maxPolarAngle={Math.PI / 2.1}
         minDistance={3}
         maxDistance={10}
-        autoRotate={false}
         dampingFactor={0.08}
         enableDamping
       />
@@ -772,6 +604,9 @@ const paintColors = [
   { name: "Midnight Purple", hex: "#3d1f56" },
   { name: "Inferno Orange", hex: "#c44200" },
   { name: "Lunar Rock", hex: "#a0a090" },
+  { name: "Sakura Pink", hex: "#e8a0b0" },
+  { name: "Sky Blue", hex: "#5b9bd5" },
+  { name: "Mint Green", hex: "#7bc8a4" },
 ];
 
 const wheelFinishes = [
@@ -781,7 +616,7 @@ const wheelFinishes = [
   { name: "Gold", hex: "#c4a240" },
 ];
 
-// ─── Exported viewer component ──────────────────────────────────────
+// ─── Exported component ─────────────────────────────────────────────
 
 interface CarModel3DProps {
   initialColor?: string;
@@ -797,6 +632,7 @@ export function CarModel3D({
   const [selectedColor, setSelectedColor] = useState(initialColor);
   const [autoRotate, setAutoRotate] = useState(true);
   const [showCustomize, setShowCustomize] = useState(false);
+  const [sceneReady, setSceneReady] = useState(false);
 
   const currentPaint = paintColors.find((p) => p.hex === selectedColor) ?? null;
 
@@ -825,17 +661,46 @@ export function CarModel3D({
 
       {/* 3D Canvas */}
       <div className="relative flex-1">
-        <Canvas
-          shadows
-          camera={{ position: [5, 2.5, 5], fov: 40 }}
-          gl={{
-            antialias: true,
-            toneMapping: THREE.ACESFilmicToneMapping,
-            toneMappingExposure: 1.1,
-          }}
+        <Canvas3DErrorBoundary
+          fallback={
+            <div className="flex h-full items-center justify-center bg-black">
+              <div className="text-center">
+                <p className="mb-2 text-sm text-white/60">
+                  3D viewer failed to load
+                </p>
+                <button
+                  onClick={() => window.location.reload()}
+                  className="rounded-lg bg-white/10 px-4 py-2 text-xs text-white hover:bg-white/20"
+                >
+                  Reload
+                </button>
+              </div>
+            </div>
+          }
         >
-          <CarScene color={selectedColor} autoRotate={autoRotate} />
-        </Canvas>
+          <Canvas
+            shadows
+            camera={{ position: [4, 2, 4], fov: 38 }}
+            gl={{
+              antialias: true,
+              toneMapping: THREE.ACESFilmicToneMapping,
+              toneMappingExposure: 1.0,
+            }}
+            onCreated={() => setSceneReady(true)}
+          >
+            <Suspense fallback={null}>
+              <CarScene color={selectedColor} autoRotate={autoRotate} />
+            </Suspense>
+          </Canvas>
+          {!sceneReady && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black">
+              <div className="text-center">
+                <div className="mx-auto mb-3 h-8 w-8 animate-spin rounded-full border-2 border-white/20 border-t-white/80" />
+                <p className="text-sm text-white/60">Loading 3D viewer...</p>
+              </div>
+            </div>
+          )}
+        </Canvas3DErrorBoundary>
 
         <div className="pointer-events-none absolute right-0 bottom-3 left-0 text-center text-[11px] text-white/40">
           Drag to rotate &bull; Pinch to zoom

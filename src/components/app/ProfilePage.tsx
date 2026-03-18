@@ -732,6 +732,7 @@ function EditProfilePanel({ onBack }: { onBack: () => void }) {
 export function ProfilePage() {
   const [darkMode, setDarkMode] = useState(false);
   const [settingsView, setSettingsView] = useState<SettingsView>(null);
+  const [navDirection, setNavDirection] = useState(1); // 1 = forward, -1 = back
 
   const toggleDark = () => {
     setDarkMode(!darkMode);
@@ -751,13 +752,19 @@ export function ProfilePage() {
           icon: Bell,
           label: "Notifications",
           value: "On",
-          action: () => setSettingsView("notifications"),
+          action: () => {
+            setNavDirection(1);
+            setSettingsView("notifications");
+          },
         },
         {
           icon: Globe,
           label: "Language",
           value: "English",
-          action: () => setSettingsView("language"),
+          action: () => {
+            setNavDirection(1);
+            setSettingsView("language");
+          },
         },
       ],
     },
@@ -767,18 +774,27 @@ export function ProfilePage() {
         {
           icon: Shield,
           label: "Privacy & Security",
-          action: () => setSettingsView("privacy"),
+          action: () => {
+            setNavDirection(1);
+            setSettingsView("privacy");
+          },
         },
         {
           icon: Star,
           label: "My Membership",
           badge: "Gold",
-          action: () => setSettingsView("membership"),
+          action: () => {
+            setNavDirection(1);
+            setSettingsView("membership");
+          },
         },
         {
           icon: FileText,
           label: "Terms of Service",
-          action: () => setSettingsView("terms"),
+          action: () => {
+            setNavDirection(1);
+            setSettingsView("terms");
+          },
         },
       ],
     },
@@ -788,13 +804,19 @@ export function ProfilePage() {
         {
           icon: HelpCircle,
           label: "Help Center",
-          action: () => setSettingsView("help"),
+          action: () => {
+            setNavDirection(1);
+            setSettingsView("help");
+          },
         },
         {
           icon: Phone,
           label: "Contact Dealer",
           value: "(02) 8123-4567",
-          action: () => setSettingsView("contact"),
+          action: () => {
+            setNavDirection(1);
+            setSettingsView("contact");
+          },
         },
       ],
     },
@@ -802,50 +824,98 @@ export function ProfilePage() {
 
   return (
     <div className="flex h-full flex-col">
-      <AnimatePresence mode="wait">
+      <AnimatePresence mode="wait" custom={navDirection}>
         {settingsView ? (
           <motion.div
             key={settingsView}
-            initial={{ x: 80, opacity: 0 }}
+            custom={navDirection}
+            initial={{ x: navDirection * 80, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
-            exit={{ x: -80, opacity: 0 }}
+            exit={{ x: navDirection * -80, opacity: 0 }}
             transition={{ duration: 0.2, ease: "easeInOut" }}
             className="flex min-h-0 flex-1 flex-col"
           >
             {settingsView === "notifications" && (
-              <NotificationsPanel onBack={() => setSettingsView(null)} />
+              <NotificationsPanel
+                onBack={() => {
+                  setNavDirection(-1);
+                  setSettingsView(null);
+                }}
+              />
             )}
             {settingsView === "language" && (
-              <LanguagePanel onBack={() => setSettingsView(null)} />
+              <LanguagePanel
+                onBack={() => {
+                  setNavDirection(-1);
+                  setSettingsView(null);
+                }}
+              />
             )}
             {settingsView === "privacy" && (
-              <PrivacyPanel onBack={() => setSettingsView(null)} />
+              <PrivacyPanel
+                onBack={() => {
+                  setNavDirection(-1);
+                  setSettingsView(null);
+                }}
+              />
             )}
             {settingsView === "membership" && (
-              <MembershipPanel onBack={() => setSettingsView(null)} />
+              <MembershipPanel
+                onBack={() => {
+                  setNavDirection(-1);
+                  setSettingsView(null);
+                }}
+              />
             )}
             {settingsView === "terms" && (
-              <TermsPanel onBack={() => setSettingsView(null)} />
+              <TermsPanel
+                onBack={() => {
+                  setNavDirection(-1);
+                  setSettingsView(null);
+                }}
+              />
             )}
             {settingsView === "help" && (
-              <HelpPanel onBack={() => setSettingsView(null)} />
+              <HelpPanel
+                onBack={() => {
+                  setNavDirection(-1);
+                  setSettingsView(null);
+                }}
+              />
             )}
             {settingsView === "contact" && (
-              <ContactPanel onBack={() => setSettingsView(null)} />
+              <ContactPanel
+                onBack={() => {
+                  setNavDirection(-1);
+                  setSettingsView(null);
+                }}
+              />
             )}
             {settingsView === "signout" && (
-              <SignOutPanel onBack={() => setSettingsView(null)} />
+              <SignOutPanel
+                onBack={() => {
+                  setNavDirection(-1);
+                  setSettingsView(null);
+                }}
+              />
             )}
             {settingsView === "edit-profile" && (
-              <EditProfilePanel onBack={() => setSettingsView(null)} />
+              <EditProfilePanel
+                onBack={() => {
+                  setNavDirection(-1);
+                  setSettingsView(null);
+                }}
+              />
             )}
           </motion.div>
         ) : (
           <motion.div
             key="main"
-            initial={{ opacity: 1 }}
-            exit={{ x: -80, opacity: 0 }}
-            transition={{ duration: 0.2 }}
+            custom={navDirection}
+            initial={{ x: navDirection * 80, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            exit={{ x: navDirection * -80, opacity: 0 }}
+            transition={{ duration: 0.2, ease: "easeInOut" }}
             className="flex min-h-0 flex-1 flex-col"
           >
             <div className="bg-card shrink-0 px-4 pt-4 pb-4">
@@ -858,7 +928,10 @@ export function ProfilePage() {
             <div className="no-scrollbar flex-1 overflow-y-auto px-4 pb-4">
               {/* Profile Card */}
               <button
-                onClick={() => setSettingsView("edit-profile")}
+                onClick={() => {
+                  setNavDirection(1);
+                  setSettingsView("edit-profile");
+                }}
                 className="bg-card hover:bg-secondary/50 flex w-full items-center gap-4 rounded-2xl border p-4 text-left transition-colors"
               >
                 <Avatar className="h-16 w-16">
@@ -940,7 +1013,10 @@ export function ProfilePage() {
 
               {/* Sign Out */}
               <button
-                onClick={() => setSettingsView("signout")}
+                onClick={() => {
+                  setNavDirection(1);
+                  setSettingsView("signout");
+                }}
                 className="border-destructive/20 bg-destructive/5 text-destructive hover:bg-destructive/10 mt-5 flex w-full items-center justify-center gap-2 rounded-xl border py-3 text-sm font-medium transition-colors"
               >
                 <LogOut className="h-4 w-4" />

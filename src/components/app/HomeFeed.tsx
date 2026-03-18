@@ -228,17 +228,40 @@ export function HomeFeed() {
             <h1 className="text-foreground text-lg font-bold">Community</h1>
             <p className="text-muted-foreground text-xs">Toyota Valenzuela</p>
           </div>
-          <button
+          <motion.button
             onClick={() => setShowNotifs(!showNotifs)}
+            whileTap={{ scale: 0.85 }}
             className="bg-secondary hover:bg-secondary/80 relative flex h-9 w-9 items-center justify-center rounded-full transition-colors"
           >
-            <Bell className="text-foreground h-4 w-4" />
-            {unreadCount > 0 && (
-              <span className="bg-primary text-primary-foreground absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[9px] font-bold">
-                {unreadCount}
-              </span>
-            )}
-          </button>
+            <motion.div
+              animate={
+                unreadCount > 0
+                  ? { rotate: [0, 15, -15, 10, -10, 0] }
+                  : { rotate: 0 }
+              }
+              transition={{
+                duration: 0.6,
+                delay: 1,
+                repeat: Infinity,
+                repeatDelay: 4,
+              }}
+            >
+              <Bell className="text-foreground h-4 w-4" />
+            </motion.div>
+            <AnimatePresence>
+              {unreadCount > 0 && (
+                <motion.span
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  exit={{ scale: 0 }}
+                  transition={{ type: "spring", stiffness: 500, damping: 20 }}
+                  className="bg-primary text-primary-foreground absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[9px] font-bold"
+                >
+                  {unreadCount}
+                </motion.span>
+              )}
+            </AnimatePresence>
+          </motion.button>
         </div>
 
         <div className="relative">
@@ -258,13 +281,24 @@ export function HomeFeed() {
               key={f.id}
               onClick={() => setActiveFilter(f.id)}
               className={cn(
-                "shrink-0 rounded-full px-3 py-1 text-xs font-medium transition-colors",
+                "relative shrink-0 rounded-full px-3 py-1 text-xs font-medium transition-colors duration-200",
                 activeFilter === f.id
-                  ? "bg-primary text-primary-foreground"
+                  ? "text-primary-foreground"
                   : "bg-secondary text-secondary-foreground",
               )}
             >
-              {f.label}
+              {activeFilter === f.id && (
+                <motion.div
+                  layoutId="activeFilter"
+                  className="bg-primary absolute inset-0 rounded-full"
+                  transition={{
+                    type: "spring",
+                    stiffness: 400,
+                    damping: 28,
+                  }}
+                />
+              )}
+              <span className="relative z-10">{f.label}</span>
             </button>
           ))}
         </div>
@@ -340,9 +374,16 @@ export function HomeFeed() {
       {/* Feed */}
       <div className="no-scrollbar flex-1 overflow-y-auto px-4 pb-4">
         <div className="space-y-3 pt-3">
-          {filteredPosts.map((post) => (
-            <article
+          {filteredPosts.map((post, i) => (
+            <motion.article
               key={post.id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{
+                delay: i * 0.06,
+                duration: 0.35,
+                ease: [0.25, 0.1, 0.25, 1],
+              }}
               className="bg-card rounded-xl border p-4 transition-colors"
             >
               <div className="mb-2 flex items-start justify-between">
@@ -401,18 +442,28 @@ export function HomeFeed() {
               )}
 
               <div className="flex items-center gap-4">
-                <button
+                <motion.button
                   onClick={() => toggleLike(post.id)}
+                  whileTap={{ scale: 1.3 }}
                   className="text-muted-foreground flex items-center gap-1 text-xs transition-colors"
                 >
-                  <Heart
-                    className={cn(
-                      "h-4 w-4",
-                      post.liked && "fill-primary text-primary",
-                    )}
-                  />
+                  <motion.div
+                    animate={
+                      post.liked
+                        ? { scale: [1, 1.4, 1], rotate: [0, -15, 0] }
+                        : { scale: 1 }
+                    }
+                    transition={{ duration: 0.35, ease: "easeOut" }}
+                  >
+                    <Heart
+                      className={cn(
+                        "h-4 w-4 transition-colors duration-200",
+                        post.liked && "fill-primary text-primary",
+                      )}
+                    />
+                  </motion.div>
                   {post.likes}
-                </button>
+                </motion.button>
                 <button className="text-muted-foreground flex items-center gap-1 text-xs">
                   <MessageSquare className="h-4 w-4" />
                   {post.comments}
@@ -421,24 +472,38 @@ export function HomeFeed() {
                   <Share2 className="h-4 w-4" />
                 </button>
               </div>
-            </article>
+            </motion.article>
           ))}
 
           {filteredPosts.length === 0 && (
-            <div className="text-muted-foreground py-12 text-center text-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="text-muted-foreground py-12 text-center text-sm"
+            >
               No posts found.
-            </div>
+            </motion.div>
           )}
         </div>
       </div>
 
       {/* Floating Post Button */}
-      <button
+      <motion.button
         onClick={() => setShowCompose(true)}
-        className="bg-primary shadow-primary/25 absolute right-4 bottom-4 z-10 flex h-12 w-12 items-center justify-center rounded-full shadow-lg transition-transform hover:scale-105 active:scale-95"
+        initial={{ scale: 0, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{
+          type: "spring",
+          stiffness: 300,
+          damping: 18,
+          delay: 0.3,
+        }}
+        whileHover={{ scale: 1.1 }}
+        whileTap={{ scale: 0.9 }}
+        className="bg-primary shadow-primary/25 absolute right-4 bottom-4 z-10 flex h-12 w-12 items-center justify-center rounded-full shadow-lg"
       >
         <Plus className="text-primary-foreground h-5 w-5" />
-      </button>
+      </motion.button>
 
       {/* Compose Modal */}
       <AnimatePresence>

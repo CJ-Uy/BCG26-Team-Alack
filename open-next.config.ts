@@ -10,7 +10,7 @@ const cloudflareConfig = defineCloudflareConfig({
 
 export default {
   ...cloudflareConfig,
-  // This is required to avoid infinite recursion when "npm run build" 
+  // This is required to avoid infinite recursion when "npm run build"
   // is set to "opennextjs-cloudflare build" in package.json
   buildCommand: "npx next build",
 };
